@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>JEE Smart Planner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{
+    margin:0;
+    font-family:Segoe UI;
+    background:linear-gradient(135deg,#6a7be8,#7a5dbb);
+}
+h1{text-align:center;color:#fff;padding:20px}
+.card{
+    background:#fff;
+    max-width:1100px;
+    margin:20px auto;
+    padding:30px;
+    border-radius:20px;
+}
+.chapter{
+    border:2px solid #eee;
+    padding:15px;
+    margin-bottom:12px;
+    border-radius:12px;
+}
+button{
+    padding:12px 20px;
+    border:none;
+    border-radius:10px;
+    background:#6f85ea;
+    color:white;
+    font-size:16px;
+    cursor:pointer;
+}
+button:hover{background:#5c72dd}
+.hidden{display:none}
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+th,td{
+    border:1px solid #ccc;
+    padding:8px;
+    text-align:center;
+}
+th{background:#f0f0f0}
+</style>
+</head>
+
+<body>
+
+<h1>🎯 JEE Smart Planner</h1>
+
+<div class="card" id="step1">
+<h2>Rate Chapters (Default = 5/10)</h2>
+<div id="chapters"></div>
+<button onclick="goStep2()">Next</button>
+</div>
+
+<div class="card hidden" id="step2">
+<h2>Exam Details</h2>
+Exam Date: <input type="date" id="examDate"><br><br>
+Daily Study Hours: <input type="number" id="dailyHours" value="6"><br><br>
+<button onclick="generatePlan()">Generate Planner</button>
+</div>
+
+<div class="card hidden" id="step3">
+<h2>📅 Your Date-wise Study Plan</h2>
+<div id="output"></div><br>
+<button onclick="downloadPDF()">Download PDF</button>
+</div>
+
+<script>
+// ================== REDUCED JEE MAIN SYLLABUS ==================
+
+const physics = [
+ {sub:"Physics",name:"Units & Measurements",marks:3},
+ {sub:"Physics",name:"Kinematics",marks:4},
+ {sub:"Physics",name:"Laws of Motion",marks:4},
+ {sub:"Physics",name:"Work, Energy & Power",marks:4},
+ {sub:"Physics",name:"Centre of Mass & Rotational Motion",marks:5},
+ {sub:"Physics",name:"Gravitation",marks:3},
+ {sub:"Physics",name:"Thermodynamics",marks:4},
+ {sub:"Physics",name:"Kinetic Theory of Gases",marks:2},
+ {sub:"Physics",name:"Oscillations & Waves",marks:4},
+ {sub:"Physics",name:"Electrostatics",marks:5},
+ {sub:"Physics",name:"Current Electricity",marks:5},
+ {sub:"Physics",name:"Magnetic Effects of Current",marks:5},
+ {sub:"Physics",name:"Electromagnetic Induction",marks:4},
+ {sub:"Physics",name:"Alternating Current",marks:3},
+ {sub:"Physics",name:"Ray Optics",marks:5},
+ {sub:"Physics",name:"Wave Optics",marks:3},
+ {sub:"Physics",name:"Dual Nature of Matter",marks:3},
+ {sub:"Physics",name:"Atoms & Nuclei",marks:4},
+ {sub:"Physics",name:"Semiconductors",marks:5}
+];
+
+const chemistry = [
+ {sub:"Chemistry",name:"Some Basic Concepts of Chemistry",marks:3},
+ {sub:"Chemistry",name:"Atomic Structure",marks:3},
+ {sub:"Chemistry",name:"States of Matter",marks:3},
+ {sub:"Chemistry",name:"Thermodynamics",marks:4},
+ {sub:"Chemistry",name:"Chemical Equilibrium",marks:4},
+ {sub:"Chemistry",name:"Redox Reactions",marks:2},
+ {sub:"Chemistry",name:"Electrochemistry",marks:4},
+ {sub:"Chemistry",name:"Chemical Kinetics",marks:4},
+ {sub:"Chemistry",name:"Solutions",marks:3},
+ {sub:"Chemistry",name:"Periodic Table & Periodicity",marks:3},
+ {sub:"Chemistry",name:"Chemical Bonding",marks:4},
+ {sub:"Chemistry",name:"Coordination Compounds",marks:5},
+ {sub:"Chemistry",name:"p-Block Elements",marks:6},
+ {sub:"Chemistry",name:"d & f Block Elements",marks:5},
+ {sub:"Chemistry",name:"General Organic Chemistry (GOC)",marks:6},
+ {sub:"Chemistry",name:"Hydrocarbons",marks:4},
+ {sub:"Chemistry",name:"Haloalkanes & Haloarenes",marks:4},
+ {sub:"Chemistry",name:"Alcohols, Phenols & Ethers",marks:4},
+ {sub:"Chemistry",name:"Aldehydes, Ketones & Carboxylic Acids",marks:5},
+ {sub:"Chemistry",name:"Amines",marks:4},
+ {sub:"Chemistry",name:"Biomolecules",marks:3}
+];
+
+const maths = [
+ {sub:"Maths",name:"Sets, Relations & Functions",marks:3},
+ {sub:"Maths",name:"Trigonometry",marks:5},
+ {sub:"Maths",name:"Complex Numbers",marks:4},
+ {sub:"Maths",name:"Quadratic Equations",marks:3},
+ {sub:"Maths",name:"Sequences & Series",marks:4},
+ {sub:"Maths",name:"Permutations & Combinations",marks:4},
+ {sub:"Maths",name:"Binomial Theorem",marks:3},
+ {sub:"Maths",name:"Matrices & Determinants",marks:5},
+ {sub:"Maths",name:"Straight Lines & Conics",marks:4},
+ {sub:"Maths",name:"Limits & Continuity",marks:4},
+ {sub:"Maths",name:"Differentiation",marks:5},
+ {sub:"Maths",name:"Applications of Derivatives",marks:4},
+ {sub:"Maths",name:"Integration",marks:6},
+ {sub:"Maths",name:"Differential Equations",marks:3},
+ {sub:"Maths",name:"Vector Algebra",marks:4},
+ {sub:"Maths",name:"3D Geometry",marks:5},
+ {sub:"Maths",name:"Probability",marks:5}
+];
+
+const syllabus = [...physics, ...chemistry, ...maths];
+
+// ================== LOGIC ==================
+
+let ratings = [];
+
+function loadChapters(){
+    let html="";
+    syllabus.forEach((c,i)=>{
+        ratings[i] = 5;
+        html += `
+        <div class="chapter">
+            <b>${c.sub} – ${c.name}</b><br>
+            <input type="range" min="1" max="10" value="5"
+                   oninput="ratings[${i}] = Number(this.value)">
+            <span>5 / 10</span>
+        </div>`;
+    });
+    document.getElementById("chapters").innerHTML = html;
+}
+loadChapters();
+
+function goStep2(){
+    document.getElementById("step1").classList.add("hidden");
+    document.getElementById("step2").classList.remove("hidden");
+}
+
+function generatePlan(){
+    if(!examDate.value){
+        alert("Please select exam date");
+        return;
+    }
+
+    const exam = new Date(examDate.value);
+    const today = new Date();
+    const hoursPerDay = +dailyHours.value;
+
+    const days = Math.max(1, Math.ceil((exam - today)/(1000*3600*24)));
+    const totalTime = days * hoursPerDay;
+    const totalMarks = syllabus.reduce((s,c)=>s+c.marks,0);
+
+    let weights=[], sum=0;
+    syllabus.forEach((c,i)=>{
+        let strength = (ratings[i] ?? 5)/10;
+        let w = (c.marks/totalMarks)*(1-strength);
+        weights.push(w);
+        sum += w;
+    });
+
+    let chapterHours = syllabus.map((c,i)=>({
+        sub:c.sub, name:c.name,
+        hrs:(totalTime*weights[i])/sum
+    }));
+
+    let plan=[];
+    let curDate=new Date(today);
+    let remaining=hoursPerDay;
+
+    chapterHours.forEach(ch=>{
+        let hrs=ch.hrs;
+        while(hrs>0){
+            if(remaining===0){
+                curDate.setDate(curDate.getDate()+1);
+                remaining=hoursPerDay;
+            }
+            let used=Math.min(remaining,hrs);
+            plan.push({
+                date:curDate.toDateString(),
+                sub:ch.sub,
+                name:ch.name,
+                hrs:used
+            });
+            hrs-=used;
+            remaining-=used;
+        }
+    });
+
+    let html=`<table>
+    <tr><th>Date</th><th>Subject</th><th>Chapter</th><th>Hours</th></tr>`;
+    plan.forEach(p=>{
+        html+=`<tr>
+        <td>${p.date}</td>
+        <td>${p.sub}</td>
+        <td>${p.name}</td>
+        <td>${p.hrs.toFixed(1)}</td>
+        </tr>`;
+    });
+    html+=`</table>`;
+
+    output.innerHTML=html;
+    step2.classList.add("hidden");
+    step3.classList.remove("hidden");
+}
+
+function downloadPDF(){
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF();
+    doc.text("JEE Smart Planner",10,10);
+    let y=20;
+    document.querySelectorAll("tr").forEach((r,i)=>{
+        if(i===0) return;
+        const c=r.children;
+        doc.text(c[0].innerText,10,y);
+        doc.text(c[1].innerText,50,y);
+        doc.text(c[2].innerText,90,y);
+        doc.text(c[3].innerText,170,y);
+        y+=8;
+        if(y>280){doc.addPage();y=20;}
+    });
+    doc.save("jee-study-plan.pdf");
+}
+</script>
+
+</body>
+</html>
